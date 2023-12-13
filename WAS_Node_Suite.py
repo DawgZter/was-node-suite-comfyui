@@ -5595,48 +5595,33 @@ class WAS_Image_Rotate_Hue:
 
 # IMAGE REMOVE COLOR
 
-class WAS_Image_Remove_Color:
-    def __init__(self):
-        pass
+import numpy as np
+from PIL import Image
 
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "target_red": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
-                "target_green": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
-                "target_blue": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
-                "clip_threshold": ("INT", {"default": 10, "min": 0, "max": 255, "step": 1}),
-            },
-        }
+def apply_remove_color(image, threshold=10, target_color=(255, 255, 255)):
+    # Convert PIL Image to NumPy array
+    np_image = np.array(image.convert('RGBA'))
 
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "image_remove_color"
+    # Calculate the absolute difference between the image and target color
+    diff = np.abs(np_image[:, :, :3] - np.array(target_color))
 
-    CATEGORY = "WAS Suite/Image/Process"
+    # Sum the differences across the color channels
+    total_diff = np.sum(diff, axis=2)
 
-    def image_remove_color(self, image, clip_threshold=10, target_red=255, target_green=255, target_blue=255):
-        return (pil2tensor(self.apply_remove_color(tensor2pil(image), clip_threshold, (target_red, target_green, target_blue))), )
+    # Create a mask where the total difference is less than or equal to the threshold
+    mask = total_diff <= threshold
 
-    def apply_remove_color(self, image, threshold=10, target_color=(255, 255, 255), replace_with_transparency=False):
-        # Ensure the image is in RGBA format for transparency support
-        image = image.convert('RGBA')
+    # Set the alpha channel to 0 where the mask is True (making the pixel transparent)
+    np_image[mask] = (0, 0, 0, 0)
 
-        # Process each pixel
-        for x in range(image.width):
-            for y in range(image.height):
-                # Get the current pixel
-                pixel = image.getpixel((x, y))
+    # Convert the NumPy array back to PIL Image
+    return Image.fromarray(np_image)
 
-                # Calculate the difference from the target color
-                diff = sum([abs(pixel[i] - target_color[i]) for i in range(3)])
+# Example usage
+original_image = Image.open("path_to_your_image.jpg")
+processed_image = apply_remove_color(original_image)
+processed_image.show()
 
-                # If the pixel is close to the target color, make it transparent
-                if diff <= threshold:
-                    image.putpixel((x, y), (0, 0, 0, 0))
-
-        return image
 
 # IMAGE REMOVE BACKGROUND
 
