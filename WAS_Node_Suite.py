@@ -5607,9 +5607,6 @@ class WAS_Image_Remove_Color:
                 "target_red": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
                 "target_green": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
                 "target_blue": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
-                "replace_red": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
-                "replace_green": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
-                "replace_blue": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
                 "clip_threshold": ("INT", {"default": 10, "min": 0, "max": 255, "step": 1}),
             },
         }
@@ -5619,31 +5616,27 @@ class WAS_Image_Remove_Color:
 
     CATEGORY = "WAS Suite/Image/Process"
 
-    def image_remove_color(self, image, clip_threshold=10, target_red=255, target_green=255, target_blue=255, replace_red=255, replace_green=255, replace_blue=255):
-        return (pil2tensor(self.apply_remove_color(tensor2pil(image), clip_threshold, (target_red, target_green, target_blue), (replace_red, replace_green, replace_blue))), )
+    def image_remove_color(self, image, clip_threshold=10, target_red=255, target_green=255, target_blue=255):
+        return (pil2tensor(self.apply_remove_color(tensor2pil(image), clip_threshold, (target_red, target_green, target_blue))), )
 
-    def apply_remove_color(self, image, threshold=10, color=(255, 255, 255), rep_color=(0, 0, 0)):
-        # Create a color image with the same size as the input image
-        color_image = Image.new('RGB', image.size, color)
+    def apply_remove_color(self, image, threshold=10, target_color=(255, 255, 255), replace_with_transparency=False):
+        # Ensure the image is in RGBA format for transparency support
+        image = image.convert('RGBA')
 
-        # Calculate the difference between the input image and the color image
-        diff_image = ImageChops.difference(image, color_image)
+        # Process each pixel
+        for x in range(image.width):
+            for y in range(image.height):
+                # Get the current pixel
+                pixel = image.getpixel((x, y))
 
-        # Convert the difference image to grayscale
-        gray_image = diff_image.convert('L')
+                # Calculate the difference from the target color
+                diff = sum([abs(pixel[i] - target_color[i]) for i in range(3)])
 
-        # Apply a threshold to the grayscale difference image
-        mask_image = gray_image.point(lambda x: 255 if x > threshold else 0)
+                # If the pixel is close to the target color, make it transparent
+                if diff <= threshold:
+                    image.putpixel((x, y), (0, 0, 0, 0))
 
-        # Invert the mask image
-        mask_image = ImageOps.invert(mask_image)
-
-        # Apply the mask to the original image
-        result_image = Image.composite(
-            Image.new('RGB', image.size, rep_color), image, mask_image)
-
-        return result_image
-
+        return image
 
 # IMAGE REMOVE BACKGROUND
 
