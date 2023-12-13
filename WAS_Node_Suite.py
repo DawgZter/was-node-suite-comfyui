@@ -5597,32 +5597,56 @@ class WAS_Image_Rotate_Hue:
 
 from PIL import Image, ImageChops, ImageOps
 
-def apply_remove_color(self, image, threshold=10, color=(255, 255, 255)):
-    # Convert the image to RGBA format
-    image = image.convert('RGBA')
+class WAS_Image_Remove_Color:
+    def __init__(self):
+        pass
 
-    # Create a color image with the same size as the input image
-    color_image = Image.new('RGBA', image.size, color + (255,))
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "target_red": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
+                "target_green": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
+                "target_blue": ("INT", {"default": 255, "min": 0, "max": 255, "step": 1}),
+                "clip_threshold": ("INT", {"default": 10, "min": 0, "max": 255, "step": 1}),
+            },
+        }
 
-    # Calculate the difference between the input image and the color image
-    diff_image = ImageChops.difference(image, color_image)
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "image_remove_color"
+    CATEGORY = "WAS Suite/Image/Process"
 
-    # Convert the difference image to grayscale
-    gray_image = diff_image.convert('L')
+    def image_remove_color(self, image, clip_threshold=10, target_red=255, target_green=255, target_blue=255):
+        target_color = (target_red, target_green, target_blue)
+        return (pil2tensor(self.apply_remove_color(tensor2pil(image), clip_threshold, target_color)), )
 
-    # Apply a threshold to the grayscale difference image
-    mask_image = gray_image.point(lambda x: 255 if x > threshold else 0)
+    def apply_remove_color(self, image, threshold=10, target_color=(255, 255, 255)):
+    	# Convert the image to RGBA format for transparency support
+    	image = image.convert('RGBA')
 
-    # Invert the mask image
-    mask_image = ImageOps.invert(mask_image)
+    	# Create a target color image (with no alpha) to compare against
+    	color_image = Image.new('RGB', image.size, target_color)
 
-    # Create a transparent image
-    transparent_image = Image.new('RGBA', image.size, (0, 0, 0, 0))
+    	# Calculate the difference between the input image (ignoring alpha) and the target color image
+    	diff_image = ImageChops.difference(image.convert('RGB'), color_image)
 
-    # Apply the mask to create a result image with the specified color made transparent
-    result_image = Image.composite(transparent_image, image, mask_image)
+    	# Convert the difference image to grayscale
+    	gray_image = diff_image.convert('L')
 
-    return result_image
+    	# Create a mask where the grayscale value is below the threshold (meaning close to the target color)
+    	mask_image = gray_image.point(lambda x: 0 if x <= threshold else 255)
+
+    	# Prepare an alpha channel based on the mask
+    	alpha_channel = mask_image
+
+    	# Split the original image into its RGB and Alpha components
+    	r, g, b, existing_alpha = image.split()
+
+    	# Combine the original RGB with the new alpha channel
+    	result_image = Image.merge('RGBA', (r, g, b, alpha_channel))
+
+    	return result_image
 
 
 # IMAGE REMOVE BACKGROUND
