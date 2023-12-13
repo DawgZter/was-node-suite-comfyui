@@ -5595,32 +5595,34 @@ class WAS_Image_Rotate_Hue:
 
 # IMAGE REMOVE COLOR
 
-import numpy as np
-from PIL import Image
+from PIL import Image, ImageChops, ImageOps
 
-def apply_remove_color(image, threshold=10, target_color=(255, 255, 255)):
-    # Convert PIL Image to NumPy array
-    np_image = np.array(image.convert('RGBA'))
+def apply_remove_color(self, image, threshold=10, color=(255, 255, 255)):
+    # Convert the image to RGBA format
+    image = image.convert('RGBA')
 
-    # Calculate the absolute difference between the image and target color
-    diff = np.abs(np_image[:, :, :3] - np.array(target_color))
+    # Create a color image with the same size as the input image
+    color_image = Image.new('RGBA', image.size, color + (255,))
 
-    # Sum the differences across the color channels
-    total_diff = np.sum(diff, axis=2)
+    # Calculate the difference between the input image and the color image
+    diff_image = ImageChops.difference(image, color_image)
 
-    # Create a mask where the total difference is less than or equal to the threshold
-    mask = total_diff <= threshold
+    # Convert the difference image to grayscale
+    gray_image = diff_image.convert('L')
 
-    # Set the alpha channel to 0 where the mask is True (making the pixel transparent)
-    np_image[mask] = (0, 0, 0, 0)
+    # Apply a threshold to the grayscale difference image
+    mask_image = gray_image.point(lambda x: 255 if x > threshold else 0)
 
-    # Convert the NumPy array back to PIL Image
-    return Image.fromarray(np_image)
+    # Invert the mask image
+    mask_image = ImageOps.invert(mask_image)
 
-# Example usage
-original_image = Image.open("path_to_your_image.jpg")
-processed_image = apply_remove_color(original_image)
-processed_image.show()
+    # Create a transparent image
+    transparent_image = Image.new('RGBA', image.size, (0, 0, 0, 0))
+
+    # Apply the mask to create a result image with the specified color made transparent
+    result_image = Image.composite(transparent_image, image, mask_image)
+
+    return result_image
 
 
 # IMAGE REMOVE BACKGROUND
